@@ -5,12 +5,14 @@ It requires Auto Shot, Multi Shot and Aimed Shot to be on the auction bar.
 ## Installing ##   
 1. Download the folder and rename it into OneButtonHunter   
 2. Make this macro for ranged rotation: /run OBH:Run()
+3. Make this macro for melee rotation: /run OBH:Run2()
+4. Spam press this macro
+5. Type /obh on in chat to turn on debugger
+6. Type /obh off to turn off debugger
+7. Useful to see if your ranged weapon is too fast and always clipping your Aimed shot ranged weapons below 1.9 speed will not let Aimed Shot go off they are too fast!
+8. And now with the melee debugger it will let you see if your weapons are too fast for Raptor Strike every main hand swing anything below 2.10 attack speed!
 
-2a. Make this macro for melee rotation: /run OBH:Run2()
-3. Spam press this macro
-4. Type /obh on in chat to turn on debugger
-5. Type /obh off to turn off debugger
-6. Useful to see if your ranged weapon is too fast and always clipping your Aimed shot ranged weapons below 1.9 speed will not let Aimed Shot go off they are too fast!
+
 
 ```
 OBH Debugging Enabled

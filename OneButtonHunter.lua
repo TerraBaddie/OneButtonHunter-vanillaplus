@@ -198,6 +198,188 @@ function OBH:Run()
 	end
 end
 
+---------------------------------------------------------
+-- Find the REAL Auto Attack ability from the spellbook
+---------------------------------------------------------
+function OBH:FindAttack()
+    local numTabs = GetNumSpellTabs()
+    local index = 1
+
+    for t = 1, numTabs do
+        local tabName, _, offset, numSpells = GetSpellTabInfo(t)
+        for i = 1, numSpells do
+            local id = offset + i
+            local name = GetSpellName(id, BOOKTYPE_SPELL)
+
+            if name == "Attack" then
+                if self.debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("OBH Melee: Found true Attack spell at index "..id)
+                end
+                return id
+            end
+        end
+    end
+
+    if self.debug then
+        DEFAULT_CHAT_FRAME:AddMessage("OBH Melee: Could NOT find 'Attack' in spellbook!")
+    end
+
+    return nil
+end
+
+-------------------------------------------------------
+--  MELEE ROTATION: Savage Blow → Mongoose Bite → RS
+--  Stand-alone. Does NOT affect ranged Run().
+-------------------------------------------------------
+function OBH:Run2()
+    ---------------------------------------------------
+    -- UNIVERSAL TOOLTIP SCANNER (V+ compatible)
+    ---------------------------------------------------
+    local function FindSpellOnBars(spell)
+        local needle = string.lower(spell)
+
+        for i = 1, 120 do
+            OBH_T:SetOwner(UIParent, "ANCHOR_NONE")
+            OBH_T:ClearLines()
+            OBH_T:SetAction(i)
+
+            for line = 1, 8 do
+                local fs = getglobal("OBH_TTextLeft"..line)
+                if fs then
+                    local text = fs:GetText()
+                    if text and string.find(string.lower(text), needle) then
+                        if OBH.debug then
+                            DEFAULT_CHAT_FRAME:AddMessage("OBH: Found "..spell.." on slot "..i)
+                        end
+                        OBH_T:Hide()
+                        return i
+                    end
+                end
+            end
+
+            OBH_T:Hide()
+        end
+
+        if OBH.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("OBH: Could NOT find "..spell)
+        end
+        return nil
+    end
+
+    ---------------------------------------------------
+    -- REAL AUTO ATTACK FROM SPELLBOOK
+    ---------------------------------------------------
+    if not self.attackSpellIndex then
+        -- Find "Attack" in the spellbook (General tab)
+        local numTabs = GetNumSpellTabs()
+        for t = 1, numTabs do
+            local tabName, _, offset, numSpells = GetSpellTabInfo(t)
+            for i = 1, numSpells do
+                local id = offset + i
+                local name = GetSpellName(id, BOOKTYPE_SPELL)
+                if name == "Attack" then
+                    self.attackSpellIndex = id
+                    if self.debug then
+                        DEFAULT_CHAT_FRAME:AddMessage("OBH Melee: Found true Attack at spellbook index "..id)
+                    end
+                    break
+                end
+            end
+        end
+    end
+
+    -- Start auto attack reliably
+    if self.attackSpellIndex then
+        CastSpell(self.attackSpellIndex, BOOKTYPE_SPELL)
+    end
+
+    ---------------------------------------------------
+    -- CACHE MELEE SPELL SLOTS
+    ---------------------------------------------------
+    if not self.savageSlot then
+        self.savageSlot = FindSpellOnBars("Savage Blow")
+    end
+    if not self.mongooseSlot then
+        self.mongooseSlot = FindSpellOnBars("Mongoose Bite")
+    end
+    if not self.raptorSlot then
+        self.raptorSlot = FindSpellOnBars("Raptor Strike")
+    end
+
+    ---------------------------------------------------
+    -- SWING TIMER READOUT (Aimed Shot style)
+    ---------------------------------------------------
+    local now = GetTime()
+    local mh = UnitAttackSpeed("player") or 2.0
+    self.mhSpeed = mh
+
+    -- Initialize swing timer if missing
+    if not self.swingNext then
+        self.swingNext = now + mh
+    end
+
+    local nextSwing = self.swingNext - now
+    if nextSwing < 0 then nextSwing = 0 end
+
+    if self.debug then
+        DEFAULT_CHAT_FRAME:AddMessage(string.format(
+            "OBH [Melee] → MHSpeed: %.2f | NextSwing: %.2fs | RS Ready: %s",
+            mh,
+            nextSwing,
+            (GetActionCooldown(self.raptorSlot) == 0) and "yes" or "no"
+        ))
+
+        -- Warn if attack speed too fast for reliable RS priming
+        if mh < 2.10 then
+            DEFAULT_CHAT_FRAME:AddMessage(string.format(
+                "OBH [Melee WARNING] → Weapon speed %.2f is very fast (<2.10). RS prime window may be tight.",
+                mh
+            ))
+        end
+    end
+
+    ---------------------------------------------------
+    -- PRIORITY SYSTEM
+    -- 1) Savage Blow
+    -- 2) Mongoose Bite (reactive)
+    -- 3) Raptor Strike (prime next hit)
+    ---------------------------------------------------
+
+    -- 1) SAVAGE BLOW
+    if self.savageSlot and GetActionCooldown(self.savageSlot) == 0 then
+        CastSpellByName("Savage Blow")
+        if self.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("OBH Melee: Casting Savage Blow")
+        end
+        return
+    end
+
+    -- 2) MONGOOSE BITE (available after dodge)
+    if self.mongooseSlot
+       and IsUsableAction(self.mongooseSlot)
+       and GetActionCooldown(self.mongooseSlot) == 0 then
+
+        CastSpellByName("Mongoose Bite")
+        if self.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("OBH Melee: Casting Mongoose Bite")
+        end
+        return
+    end
+
+    -- 3) RAPTOR STRIKE (prime next swing)
+    if self.raptorSlot and GetActionCooldown(self.raptorSlot) == 0 then
+        CastSpellByName("Raptor Strike")
+
+        -- Prime next swing precisely
+        self.swingNext = now + mh
+
+        if self.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("OBH Melee: Casting Raptor Strike (Primed Next Hit)")
+        end
+        return
+    end
+end
+
 -- Slash command handler for OBH debug control
 SLASH_OBH1 = "/obh"
 SlashCmdList["OBH"] = function(msg)
@@ -212,7 +394,9 @@ SlashCmdList["OBH"] = function(msg)
         DEFAULT_CHAT_FRAME:AddMessage("|cffffff00OneButtonHunter Commands:|r")
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00/obh on|r  - Enable debug output")
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00/obh off|r - Disable debug output")
-        DEFAULT_CHAT_FRAME:AddMessage("Current state: "..(OBH.debug and "|cff00ff00ON|r" or "|cffff0000OFF|r"))
+        DEFAULT_CHAT_FRAME:AddMessage("Debug Current state: "..(OBH.debug and "|cff00ff00ON|r" or "|cffff0000OFF|r"))
+		DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00/run OBH:Run()|r  - Ranged rotation macro")
+		DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00/run OBH:Run2()|r - Melee rotation macro")
     else
         DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Unknown command.|r Type |cff00ff00/obh help|r for options.")
     end

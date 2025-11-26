@@ -288,9 +288,24 @@ function OBH:Run2()
         end
     end
 
-    -- Start auto attack reliably
-    if self.attackSpellIndex then
-        CastSpell(self.attackSpellIndex, BOOKTYPE_SPELL)
+    ---------------------------------------------------
+    -- SAFE AUTO ATTACK (only enable if NOT active)
+    ---------------------------------------------------
+    local function IsAutoAttacking()
+    -- Scan all bars for Attack action
+		for i = 1, 120 do
+			if IsAttackAction(i) then
+				return IsCurrentAction(i)
+			end
+		end
+		return false
+    end
+
+    if not IsAutoAttacking() then
+		if self.attackSpellIndex then
+			CastSpell(self.attackSpellIndex, BOOKTYPE_SPELL) -- enable only
+			if self.debug then DEFAULT_CHAT_FRAME:AddMessage("OBH Melee: Auto Attack ON") end
+		end
     end
 
     ---------------------------------------------------

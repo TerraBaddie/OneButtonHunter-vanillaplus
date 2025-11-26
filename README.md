@@ -11,6 +11,7 @@ It requires Auto Shot, Multi Shot and Aimed Shot to be on the auction bar.
 6. Type /obh off to turn off debugger
 7. Useful to see if your ranged weapon is too fast and always clipping your Aimed shot ranged weapons below 1.9 speed will not let Aimed Shot go off they are too fast!
 8. And now with the melee debugger it will let you see if your weapons are too fast for Raptor Strike every main hand swing anything below 2.10 attack speed!
+9. To not toggle off and on auto attack "Attack" from your Spell book melee attack must be somewhere on your bars!
 
 
 
